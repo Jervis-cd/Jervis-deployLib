@@ -1,9 +1,9 @@
-cc        := g++										#编译器名称
-name      := pro										#项目名称
-stdcpp    := c++11										#c++标准
-cuda_home := /usr/local/cuda-11.7						#cuda home目录
-cuda_arch := 											#显卡计算能力设置
-nvcc      := $(cuda_home)/bin/nvcc -ccbin=$(cc)			#cu程序编译器
+cc        := g++
+name      := pro
+stdcpp    := c++11
+cuda_home := /usr/local/cuda-11.7
+cuda_arch :=
+nvcc      := $(cuda_home)/bin/nvcc -ccbin=$(cc
 
 # 资源以及存储文件夹
 workdir   := workspace
