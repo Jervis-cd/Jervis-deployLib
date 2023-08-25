@@ -1,9 +1,9 @@
-cc        := g++					#编译器名称
-name      := pro					#项目名称
-stdcpp    := c++11					#c++标准
-cuda_home := /usr/local/cuda-11.7
-cuda_arch := 
-nvcc      := $(cuda_home)/bin/nvcc -ccbin=$(cc)
+cc        := g++										#编译器名称
+name      := pro										#项目名称
+stdcpp    := c++11										#c++标准
+cuda_home := /usr/local/cuda-11.7						#cuda home目录
+cuda_arch := 											#显卡计算能力设置
+nvcc      := $(cuda_home)/bin/nvcc -ccbin=$(cc)			#cu程序编译器
 
 # 资源以及存储文件夹
 workdir   := workspace
@@ -11,32 +11,31 @@ srcdir    := src
 objdir    := objs
 
 #系统以及第三方库根目录
-syslib		:= /datav/software/anaconda3/lib/python3.9/site-packages/trtpy/lib
-opencv_home	:= /datav/software/anaconda3/lib/python3.9/site-packages/trtpy/cpp-packages
-trt_home	:= 
-
-# 头文件路径
-include_paths := src              \
-    $(cuda_home)/include/cuda     \
-	$(cuda_home)/include/tensorRT \
-	$(cpp_pkg)/opencv4.2/include  \
-	$(cuda_home)/include/protobuf
+sys_home	:= /usr/local
+opencv_home	:= /home/jervis/Documents/opencv-4.6.0
+trt_home	:= /home/jervis/Documents/TensorRT-8.5.1.7
 
 # 定义opencv和cuda需要用到的库文件
 link_cuda      := cudart cudnn
-link_trtpro    := 
-link_tensorRT  := nvinfer nvinfer_plugin
+link_tensorRT  := nvinfer nvinfer_plugin nvonnxparser
 link_opencv    := opencv_core opencv_imgproc opencv_imgcodecs
 link_sys       := stdc++ dl protobuf
 link_librarys  := $(link_cuda) $(link_tensorRT) $(link_sys) $(link_opencv)
 
 # 定义库文件路径，只需要写路径，不需要写-L
-library_paths := $(cuda_home)/lib64 $(syslib) $(cpp_pkg)/opencv4.2/lib
+library_paths := $(cuda_home)/lib64		\
+				 $(sys_home)/lib		\
+				 $(trt_home)/lib
 
-# 把library path给拼接为一个字符串，例如a b c => a:b:c
-# 然后使得LD_LIBRARY_PATH=a:b:c
+#拼接导出路径，方便之后导出
 empty := 
 library_path_export := $(subst $(empty) $(empty),:,$(library_paths))
+
+# 头文件路径
+include_paths := src              	\
+    $(cuda_home)/include     		\
+	$(trt_home)/include				\
+	$(sys_home)/include/opencv4
 
 # 把库路径和头文件路径拼接起来成一个，批量自动加-I、-L、-l
 run_paths     := $(foreach item,$(library_paths),-Wl,-rpath=$(item))
@@ -44,7 +43,7 @@ include_paths := $(foreach item,$(include_paths),-I$(item))
 library_paths := $(foreach item,$(library_paths),-L$(item))
 link_librarys := $(foreach item,$(link_librarys),-l$(item))
 
-
+#编译器设置
 cpp_compile_flags := -std=$(stdcpp) -w -g -O0 -m64 -fPIC -fopenmp -pthread
 cu_compile_flags  := -std=$(stdcpp) -w -g -O0 -m64 $(cuda_arch) -Xcompiler "$(cpp_compile_flags)"
 link_flags        := -pthread -fopenmp -Wl,-rpath='$$ORIGIN'
