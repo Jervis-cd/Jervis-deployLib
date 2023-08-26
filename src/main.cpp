@@ -76,9 +76,10 @@ static std::tuple<uint8_t,uint8_t,uint8_t> hsv2bgr(float h,float s,float v){
     case 4:r=t;g=p;b=v;break;
     case 5:r=v;g=p;b=q;break;
     default:r=1;g=1;b=1;break;}
-    return make_tuple(static_cast<uint8_t>(b*255),static_cast<uint8_t>(g*255),static_cast<uint8_t>(r * 255));
+    return std::make_tuple(static_cast<uint8_t>(b*255),static_cast<uint8_t>(g*255),static_cast<uint8_t>(r * 255));
 }
 
+//随机获取颜色
 static std::tuple<uint8_t,uint8_t,uint8_t> random_color(int id){
     float h_plane=((((unsigned int)id<<2)^0x937151)%100)/100.0f;
     float s_plane=((((unsigned int)id<<3)^0x315793)%100)/100.0f;
