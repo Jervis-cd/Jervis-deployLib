@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <math.h>
 
+#include <string>
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -84,6 +85,58 @@ static std::tuple<uint8_t,uint8_t,uint8_t> random_color(int id){
     float h_plane=((((unsigned int)id<<2)^0x937151)%100)/100.0f;
     float s_plane=((((unsigned int)id<<3)^0x315793)%100)/100.0f;
     return hsv2bgr(h_plane,s_plane,1);
+}
+
+
+// 构建体制机制记录器
+class TRTLogger:public nvinfer1::ILogger{
+
+public:
+    virtual void log(Severity severity,nvinfer1::AsciiChar const* msg) noexcept override{
+
+        if(severity<=Severity::kWARNING){
+
+            if(severity==Severity::kWARNING){
+
+                printf("\033[33m%s: %s\033[0m\n", severity_string(severity), msg);
+            }else if(severity <= Severity::kERROR){
+                printf("\033[31m%s: %s\033[0m\n", severity_string(severity), msg);
+            }else{
+                printf("%s: %s\n", severity_string(severity), msg);
+            }
+        }
+    }
+} logger;
+
+//通过智能指针管理nv返回的指针，内存自动释放
+template<typename _T>
+shared_ptr<_T> make_nvshared(_T* ptr){
+
+    return shared_ptr<_T>(ptr,[](_T* p){p->destroy();});
+}
+
+//判断文件是否存在
+bool exists(const string& path){
+    return access(path.c_str(), R_OK) == 0;
+}
+
+//解析onnx构建TensorRTmodel
+bool build_model(){
+
+    if(exists("yolov5s.trtmodel")){
+
+        printf("yolov5s.trtmodel has exists.\n");
+    }
+
+    //定义nv日志记录器
+    TRTLogger logger;
+
+    //网络构建器以及其配置优化和网络结构文件
+    auto builder=make_nvshared(nvinfer1::createInferBuilder(logger));
+    auto config=make_nvshared(builder->createBuiderConfig());
+    auto network=make_nvshared(builder->createNetworkV2(1));
+
+    
 }
 
 
