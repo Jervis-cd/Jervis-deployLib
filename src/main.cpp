@@ -108,15 +108,16 @@ public:
     }
 } logger;
 
+
 //通过智能指针管理nv返回的指针，内存自动释放
 template<typename _T>
-shared_ptr<_T> make_nvshared(_T* ptr){
+std::shared_ptr<_T> make_nvshared(_T* ptr){
 
-    return shared_ptr<_T>(ptr,[](_T* p){p->destroy();});
+    return std::shared_ptr<_T>(ptr,[](_T* p){p->destroy();});
 }
 
 //判断文件是否存在
-bool exists(const string& path){
+bool exists(const std::string& path){
     return access(path.c_str(), R_OK) == 0;
 }
 
@@ -133,9 +134,60 @@ bool build_model(){
 
     //网络构建器以及其配置优化和网络结构文件
     auto builder=make_nvshared(nvinfer1::createInferBuilder(logger));
-    auto config=make_nvshared(builder->createBuiderConfig());
+    auto config=make_nvshared(builder->createBuilderConfig());
     auto network=make_nvshared(builder->createNetworkV2(1));
 
+    //创建一个onnx文件解析器
+    auto parser=make_nvshared(nvonnxparser::createParser(*network,logger));
+    if(!parser->parseFromFile("yolov5s.onnx",1)){
+
+        printf("Failed to parse yolov5s.onnx.\n");
+        return false;
+    }
+
+    //设置maxbatchsize大小
+    int maxBatchSize=10;
+    //设置workspace大小,某些网络结构需要申请内存,所以在此先分配
+    config->setMaxWorkspaceSize(1<<28);          //左移运算，256MB
+
+    //当动态batch时，需要设置多个profile
+    auto profile=builder->createOptimizationProfile();
+    //从解析的onnx文件中获取输入张量
+    auto input_tensor=network->getInput(0);
+    //获取输入维度
+    auto input_dims=input_tensor->getDimensions();
+
+    //配置动态batch的范围
+    input_dims.d[0]=1;
+    profile->setDimensions(input_tensor->getName(),nvinfer1::OptProfileSelector::kMIN,input_dims);
+    profile->setDimensions(input_tensor->getName(),nvinfer1::OptProfileSelector::kOPT,input_dims);
+    input_dims.d[0]=maxBatchSize;
+    profile->setDimensions(input_tensor->getName(),nvinfer1::OptProfileSelector::kMAX,input_dims);
+    //将profile加入到配置文件中
+    config->addOptimizationProfile(profile);
+
+    //根据网络和配置文件构建engine
+    auto engine=make_nvshared(builder->buildEngineWithConfig(*network,*config));
+    if(engine==nullptr){
+
+        printf("Build engine failed.\n");
+        return false;
+    }
+
+    //序列化模型并保存
+    auto model_data=make_nvshared(engine->serialize());
+    FILE* f=fopen("yolov5s.trtmodel","wb");
+    fwrite(model_data->data(),1,model_data->size(),f);
+    fclose(f);
+
+    printf("Build Done.\n");
+    return true;
+}
+
+//打开文件
+std::vector<unsigned char> load_file(const std::string& file){
+
+    std::ifstream in(file,std::ios::in|std::ios::binary);
     
 }
 
