@@ -271,140 +271,151 @@ void inference(){
     cv::Mat input_image(input_height,input_width,CV_8UC3);
     //进行仿射变换获取输入图像
     cv::warpAffine(image,input_image,m2x3_i2d,input_image.size(),cv::INTER_LINEAR,cv::BORDER_CONSTANT,cv::Scalar::all(114));
-    cv::imwrite("result.png",input_image);
+    cv::imwrite("input_images.png",input_image);
 
+    //计算图像所占的长度
     int image_area=input_image.cols*input_image.rows;
     unsigned char* pimage=input_image.data;
 
+    //创建三个指针分别指向图像的bgr三个通道数据
     float* phost_b=input_data_host+image_area*0;
     float* phost_g=input_data_host+image_area*1;
     float* phost_r=input_data_host+image_area*2;
 
-    for(int i = 0; i < image_area; ++i, pimage += 3){
-        // 注意这里的顺序rgb调换了
-        *phost_r++ = pimage[0] / 255.0f;
-        *phost_g++ = pimage[1] / 255.0f;
-        *phost_b++ = pimage[2] / 255.0f;
+    //BGR->RGB，并对图像作归一化操作
+    for(int i=0;i<image_area;++i,pimage+=3){
+        *phost_r++=pimage[0]/255.0f;
+        *phost_g++=pimage[1]/255.0f;
+        *phost_b++=pimage[2]/255.0f;
     }
-    ///////////////////////////////////////////////////
-    checkRuntime(cudaMemcpyAsync(input_data_device, input_data_host, input_numel * sizeof(float), cudaMemcpyHostToDevice, stream));
+    
+    //将host输出复制到device
+    checkRuntime(cudaMemcpyAsync(input_data_device,input_data_host,input_numel*sizeof(float),cudaMemcpyHostToDevice,stream));
 
-    // 3x3输入，对应3x3输出
-    auto output_dims = engine->getBindingDimensions(1);
-    int output_numbox = output_dims.d[1];
-    int output_numprob = output_dims.d[2];
-    int num_classes = output_numprob - 5;
-    int output_numel = input_batch * output_numbox * output_numprob;
-    float* output_data_host = nullptr;
-    float* output_data_device = nullptr;
-    checkRuntime(cudaMallocHost(&output_data_host, sizeof(float) * output_numel));
-    checkRuntime(cudaMalloc(&output_data_device, sizeof(float) * output_numel));
+    //获取输出维度，yolov5输出维度(batch,25200,85)
+    auto output_dims=engine->getBindingDimensions(1);       //获取输出维度
+    int output_numbox=output_dims.d[1];                     //25200
+    int output_numprob=output_dims.d[2];                    //85
+    int num_classes=output_numprob-5;                       //获取类别总数
 
-    // 明确当前推理时，使用的数据输入大小
-    auto input_dims = engine->getBindingDimensions(0);
-    input_dims.d[0] = input_batch;
+    //output元素个数
+    int output_numel=input_batch*output_numbox*output_numprob;
+    //创建输出在host
+    float* output_data_host=nullptr;
+    float* output_data_device=nullptr;
+    //分配存储空间给网络输出
+    checkRuntime(cudaMallocHost(&output_data_host,sizeof(float)*output_numel));
+    checkRuntime(cudaMalloc(&output_data_device,sizeof(float)*output_numel));
 
-    execution_context->setBindingDimensions(0, input_dims);
-    float* bindings[] = {input_data_device, output_data_device};
-    bool success      = execution_context->enqueueV2((void**)bindings, stream, nullptr);
-    checkRuntime(cudaMemcpyAsync(output_data_host, output_data_device, sizeof(float) * output_numel, cudaMemcpyDeviceToHost, stream));
+    //明确当前推理使用的数据大小
+    auto input_dims=engine->getBindingDimensions(0);        //获取输入维度
+    input_dims.d[0]=input_batch;                            //输入维度与输出维度相同
+    execution_context->setBindingDimensions(0,input_dims);  //context设置输入维度
+
+    float* bindings[]={input_data_device,output_data_device};
+    //启动cuda流异步推理
+    bool success=execution_context->enqueueV2((void**)bindings,stream,nullptr);
+    //将输出从device复制到host
+    checkRuntime(cudaMemcpyAsync(output_data_host,output_data_device,sizeof(float)*output_numel,cudaMemcpyDeviceToHost,stream));
+    //同步操作
     checkRuntime(cudaStreamSynchronize(stream));
 
-    // decode box：从不同尺度下的预测狂还原到原输入图上(包括:预测框，类被概率，置信度）
+    //decode box从不同尺度下的预测狂还原到原输入图上(包括:预测框，类被概率，置信度）
     std::vector<std::vector<float>> bboxes;
-    float confidence_threshold = 0.25;
-    float nms_threshold = 0.5;
-    for(int i = 0; i < output_numbox; ++i){
-        float* ptr = output_data_host + i * output_numprob;
-        float objness = ptr[4];
-        if(objness < confidence_threshold)
+    float confidence_threshold=0.25;                //置信度
+    float nms_threshold=0.5;                        //iou
+    for(int i=0;i<output_numbox;++i){
+        float* ptr=output_data_host+i*output_numprob;
+        float objness=ptr[4];
+        if(objness<confidence_threshold)
             continue;
 
-        float* pclass = ptr + 5;
-        int label     = std::max_element(pclass, pclass + num_classes) - pclass;
-        float prob    = pclass[label];
-        float confidence = prob * objness;
-        if(confidence < confidence_threshold)
+        float* pclass=ptr + 5;
+        int label=std::max_element(pclass, pclass + num_classes) - pclass;
+        float prob=pclass[label];
+        float confidence=prob*objness;
+        if(confidence<confidence_threshold)
             continue;
 
         // 中心点、宽、高
-        float cx     = ptr[0];
-        float cy     = ptr[1];
-        float width  = ptr[2];
-        float height = ptr[3];
+        float cx=ptr[0];
+        float cy=ptr[1];
+        float width=ptr[2];
+        float height=ptr[3];
 
         // 预测框
-        float left   = cx - width * 0.5;
-        float top    = cy - height * 0.5;
-        float right  = cx + width * 0.5;
-        float bottom = cy + height * 0.5;
+        float left=cx-width*0.5;
+        float top=cy-height*0.5;
+        float right=cx+width*0.5;
+        float bottom=cy+height*0.5;
 
         // 对应图上的位置
-        float image_base_left   = d2i[0] * left   + d2i[2];
-        float image_base_right  = d2i[0] * right  + d2i[2];
-        float image_base_top    = d2i[0] * top    + d2i[5];
-        float image_base_bottom = d2i[0] * bottom + d2i[5];
-        bboxes.push_back({image_base_left, image_base_top, image_base_right, image_base_bottom, (float)label, confidence});
+        float image_base_left=d2i[0]*left+d2i[2];
+        float image_base_right=d2i[0]*right+d2i[2];
+        float image_base_top=d2i[0]*top+d2i[5];
+        float image_base_bottom=d2i[0]*bottom+d2i[5];
+        bboxes.push_back({image_base_left,image_base_top,image_base_right,image_base_bottom,(float)label,confidence});
     }
-    printf("decoded bboxes.size = %d\n", bboxes.size());
+    printf("decoded bboxes.size = %d\n",bboxes.size());
 
     // nms非极大抑制
-    std::sort(bboxes.begin(), bboxes.end(), [](std::vector<float>& a, std::vector<float>& b){return a[5] > b[5];});
+    std::sort(bboxes.begin(),bboxes.end(),[](std::vector<float>& a,std::vector<float>& b){return a[5]>b[5];});
     std::vector<bool> remove_flags(bboxes.size());
-    std::vector<std::vector<float>> box_result;
+    std::vector<std::vector<float>>box_result;
     box_result.reserve(bboxes.size());
 
-    auto iou = [](const std::vector<float>& a, const std::vector<float>& b){
-        float cross_left   = std::max(a[0], b[0]);
-        float cross_top    = std::max(a[1], b[1]);
-        float cross_right  = std::min(a[2], b[2]);
-        float cross_bottom = std::min(a[3], b[3]);
+    auto iou = [](const std::vector<float>& a,const std::vector<float>& b){
+        float cross_left=std::max(a[0],b[0]);
+        float cross_top=std::max(a[1],b[1]);
+        float cross_right=std::min(a[2],b[2]);
+        float cross_bottom=std::min(a[3],b[3]);
 
-        float cross_area = std::max(0.0f, cross_right - cross_left) * std::max(0.0f, cross_bottom - cross_top);
-        float union_area = std::max(0.0f, a[2] - a[0]) * std::max(0.0f, a[3] - a[1]) 
-                         + std::max(0.0f, b[2] - b[0]) * std::max(0.0f, b[3] - b[1]) - cross_area;
-        if(cross_area == 0 || union_area == 0) return 0.0f;
-        return cross_area / union_area;
+        float cross_area=std::max(0.0f,cross_right-cross_left) * std::max(0.0f,cross_bottom-cross_top);
+        float union_area=std::max(0.0f,a[2]-a[0])*std::max(0.0f,a[3]-a[1]) 
+                         +std::max(0.0f,b[2]-b[0])*std::max(0.0f,b[3]-b[1])-cross_area;
+        if(cross_area==0||union_area==0) return 0.0f;
+        return cross_area/union_area;
     };
 
-    for(int i = 0; i < bboxes.size(); ++i){
+    for(int i=0;i<bboxes.size();++i){
         if(remove_flags[i]) continue;
 
-        auto& ibox = bboxes[i];
+        auto& ibox=bboxes[i];
         box_result.emplace_back(ibox);
-        for(int j = i + 1; j < bboxes.size(); ++j){
+        for(int j=i+1;j<bboxes.size();++j){
             if(remove_flags[j]) continue;
 
-            auto& jbox = bboxes[j];
-            if(ibox[4] == jbox[4]){
+            auto& jbox=bboxes[j];
+            if(ibox[4]==jbox[4]){
                 // class matched
-                if(iou(ibox, jbox) >= nms_threshold)
-                    remove_flags[j] = true;
+                if(iou(ibox,jbox)>=nms_threshold)
+                    remove_flags[j]=true;
             }
         }
     }
-    printf("box_result.size = %d\n", box_result.size());
+    printf("box_result.size=%d\n",box_result.size());
 
-    for(int i = 0; i < box_result.size(); ++i){
-        auto& ibox = box_result[i];
-        float left = ibox[0];
-        float top = ibox[1];
-        float right = ibox[2];
-        float bottom = ibox[3];
-        int class_label = ibox[4];
-        float confidence = ibox[5];
+    for(int i=0;i<box_result.size();++i){
+        auto& ibox=box_result[i];
+        float left=ibox[0];
+        float top=ibox[1];
+        float right=ibox[2];
+        float bottom=ibox[3];
+        int class_label=ibox[4];
+        float confidence=ibox[5];
         cv::Scalar color;
-        std::tie(color[0], color[1], color[2]) = random_color(class_label);
-        cv::rectangle(image, cv::Point(left, top), cv::Point(right, bottom), color, 3);
+        std::tie(color[0],color[1],color[2])=random_color(class_label);
+        cv::rectangle(image,cv::Point(left,top),cv::Point(right, bottom),color,3);
 
-        auto name      = cocolabels[class_label];
-        auto caption   = cv::format("%s %.2f", name, confidence);
-        int text_width = cv::getTextSize(caption, 0, 1, 2, nullptr).width + 10;
-        cv::rectangle(image, cv::Point(left-3, top-33), cv::Point(left + text_width, top), color, -1);
-        cv::putText(image, caption, cv::Point(left, top-5), 0, 1, cv::Scalar::all(0), 2, 16);
+        auto name=cocolabels[class_label];
+        auto caption=cv::format("%s %.2f", name, confidence);
+        int text_width=cv::getTextSize(caption,0,1,2,nullptr).width+10;
+        cv::rectangle(image,cv::Point(left-3,top-33),cv::Point(left+text_width,top),color,-1);
+        cv::putText(image,caption,cv::Point(left,top-5),0,1,cv::Scalar::all(0),2,16);
     }
-    cv::imwrite("image-draw.jpg", image);
+    cv::imwrite("result.jpg",image);
 
+    //释放创建的流和分配的空间
     checkRuntime(cudaStreamDestroy(stream));
     checkRuntime(cudaFreeHost(input_data_host));
     checkRuntime(cudaFreeHost(output_data_host));
