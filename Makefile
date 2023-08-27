@@ -18,8 +18,8 @@ objdir    := objs
 
 #系统以及第三方库根目录
 sys_home	:= /usr/local
-opencv_home	:= /home/jervis/Documents/opencv-4.6.0
-trt_home	:= /home/jervis/Documents/TensorRT-8.5.1.7
+opencv_home	:=
+trt_home	:= /home/jervis/Pakages/TensorRT-8.5.1.7
 
 # 定义opencv和cuda需要用到的库文件
 link_cuda      := cudart cudnn
