@@ -387,7 +387,7 @@ void inference(){
 
     //nms核型部分
     for(int i=0;i<bboxes.size();++i){
-        if(remove_flags[i]) continue;               //
+        if(remove_flags[i]) continue;               //过滤相同类别已经比较过的box
 
         auto& ibox=bboxes[i];
         box_result.emplace_back(ibox);              //将ibox存储到box_result中
