@@ -226,14 +226,16 @@ void inference(){
         return;
     }
 
+    //getNbBingdings,获取与TensorRTengine绑定的输入输出数量
     if(engine->getNbBindings()!=2){
 
         printf("onnx导出有问题,必须一个输入和一个输出,当前有: %d个输出.",engine->getNbBindings()-1);
         return;
     }
 
-    //创建一个cuda流
+    //定义一个cuda流指针
     cudaStream_t stream=nullptr;
+    //创建一个cuda流，使用stream指针指向它
     checkRuntime(cudaStreamCreate(&stream));         //检车cuda runtime API是否可用
     //创建执行上下文
     auto execution_context=make_nvshared(engine->createExecutionContext());
@@ -246,6 +248,7 @@ void inference(){
 
     //输入元素个数
     int input_numel=input_batch*input_channel*input_height*input_width;
+    //创建输入输入指针，并且初始化
     float* input_data_host=nullptr;
     float* input_data_device=nullptr;
     //分配内存主机host空间以及device内存空间
@@ -266,7 +269,7 @@ void inference(){
 
     cv::Mat m2x3_i2d(2,3,CV_32F,i2d);
     cv::Mat m2x3_d2i(2,3,CV_32F,d2i);
-    cv::invertAffineTransform(m2x3_i2d,m2x3_d2i);               //获取放射变换矩阵
+    cv::invertAffineTransform(m2x3_i2d,m2x3_d2i);               //计算一个逆变换，用于还原图像
 
     cv::Mat input_image(input_height,input_width,CV_8UC3);
     //进行仿射变换获取输入图像
@@ -325,14 +328,17 @@ void inference(){
     float confidence_threshold=0.25;                //置信度
     float nms_threshold=0.5;                        //iou
     for(int i=0;i<output_numbox;++i){
-        float* ptr=output_data_host+i*output_numprob;
-        float objness=ptr[4];
-        if(objness<confidence_threshold)
+        float* ptr=output_data_host+i*output_numprob;           //获取每一个框的指针，间隔85
+        float objness=ptr[4];                                   //获取置信度x,y,w,h,conf,classes
+        if(objness<confidence_threshold)                        //过滤置信度小于阈值的框
             continue;
 
-        float* pclass=ptr + 5;
-        int label=std::max_element(pclass, pclass + num_classes) - pclass;
+        float* pclass=ptr+5;                                    //class的其实指针位置
+        //max_element返回最大值地址，减去初始位置可以获取最大值的下标
+        int label=std::max_element(pclass,pclass+num_classes)-pclass;
+        //通过下标获取最大值
         float prob=pclass[label];
+        //计算置信度
         float confidence=prob*objness;
         if(confidence<confidence_threshold)
             continue;
@@ -354,16 +360,18 @@ void inference(){
         float image_base_right=d2i[0]*right+d2i[2];
         float image_base_top=d2i[0]*top+d2i[5];
         float image_base_bottom=d2i[0]*bottom+d2i[5];
+        //将预测框加入到boxes中
         bboxes.push_back({image_base_left,image_base_top,image_base_right,image_base_bottom,(float)label,confidence});
     }
     printf("decoded bboxes.size = %d\n",bboxes.size());
 
-    // nms非极大抑制
+    // nms非极大抑制，通过lambda表达式，设置元素比较方式
     std::sort(bboxes.begin(),bboxes.end(),[](std::vector<float>& a,std::vector<float>& b){return a[5]>b[5];});
     std::vector<bool> remove_flags(bboxes.size());
     std::vector<std::vector<float>>box_result;
-    box_result.reserve(bboxes.size());
+    box_result.reserve(bboxes.size());              //vector申请内存空间
 
+    //lambda函数iou计算
     auto iou = [](const std::vector<float>& a,const std::vector<float>& b){
         float cross_left=std::max(a[0],b[0]);
         float cross_top=std::max(a[1],b[1]);
@@ -377,24 +385,26 @@ void inference(){
         return cross_area/union_area;
     };
 
+    //nms核型部分
     for(int i=0;i<bboxes.size();++i){
-        if(remove_flags[i]) continue;
+        if(remove_flags[i]) continue;               //
 
         auto& ibox=bboxes[i];
-        box_result.emplace_back(ibox);
+        box_result.emplace_back(ibox);              //将ibox存储到box_result中
         for(int j=i+1;j<bboxes.size();++j){
             if(remove_flags[j]) continue;
 
             auto& jbox=bboxes[j];
-            if(ibox[4]==jbox[4]){
+            if(ibox[4]==jbox[4]){                   //如果类别相同进行nms
                 // class matched
                 if(iou(ibox,jbox)>=nms_threshold)
-                    remove_flags[j]=true;
+                    remove_flags[j]=true;           //remove_flags=true的box都需要滤掉
             }
         }
     }
     printf("box_result.size=%d\n",box_result.size());
 
+    //nms的bboxes进行画框操作
     for(int i=0;i<box_result.size();++i){
         auto& ibox=box_result[i];
         float left=ibox[0];

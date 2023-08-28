@@ -1,5 +1,5 @@
 #项目名称
-name      := pro
+name      := yolov5-detect
 #c++编译器设置
 cc        := g++
 #c++标准
