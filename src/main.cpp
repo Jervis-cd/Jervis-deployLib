@@ -61,7 +61,7 @@ static const char* cocolabels[] = {
     "scissors", "teddy bear", "hair drier", "toothbrush"
 };
 
-// HSV->BGRd
+// HSV->BGR
 static std::tuple<uint8_t,uint8_t,uint8_t> hsv2bgr(float h,float s,float v){
     const int h_i=static_cast<int>(h*6);
     const float f=h*6-h_i;
@@ -88,7 +88,7 @@ static std::tuple<uint8_t,uint8_t,uint8_t> random_color(int id){
 }
 
 
-// 构建体制机制记录器
+// 构建TRT日志记录器
 class TRTLogger:public nvinfer1::ILogger{
 
 public:
@@ -385,7 +385,7 @@ void inference(){
         return cross_area/union_area;
     };
 
-    //nms核型部分
+    //nms部分
     for(int i=0;i<bboxes.size();++i){
         if(remove_flags[i]) continue;               //过滤相同类别已经比较过的box
 
