@@ -1,3 +1,5 @@
+import cv2
+import numpy as np
 from rknn.api import RKNN
 
 if __name__ == '__main__':
@@ -8,7 +10,7 @@ if __name__ == '__main__':
     # 设置模型转换参数，这里可以指定平台，添加target_platform='rk3588'配置，默认rk3566
     # mean_values是设置输入的均值，std_values是输入的归一化值
     print('--> Config model')
-    rknn.config(mean_values=[[0, 0, 0]], std_values=[[255, 255, 255]])
+    rknn.config(mean_values=[[0, 0, 0]], std_values=[[255, 255, 255]],target_platform='rk3588',)
     print('done')
 
     # 导入onnx模型，使用model指定onnx模型路径
