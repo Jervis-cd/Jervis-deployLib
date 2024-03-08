@@ -2,6 +2,14 @@ import cv2
 import numpy as np
 from rknn.api import RKNN
 
+ONNX_MODEL=rf"best.onnx"
+QUANTIZE_ON=False
+RKNN_MODEL=rf"./yolov8-pose.rknn"
+IMG_PATH=rf"lib/rknn-toolkit2/rknn-toolkit2/examples/onnx/yolov5/bus.jpg"
+IMG_SIZE=1280
+DATASET=rf"DATASET"
+
+
 if __name__ == '__main__':
 
     # 创建RKNN对象
@@ -10,7 +18,7 @@ if __name__ == '__main__':
     # 设置模型转换参数，这里可以指定平台，添加target_platform='rk3588'配置，默认rk3566
     # mean_values是设置输入的均值，std_values是输入的归一化值
     print('--> Config model')
-    rknn.config(mean_values=[[0, 0, 0]], std_values=[[255, 255, 255]],target_platform='rk3588',)
+    rknn.config(mean_values=[[0, 0, 0]], std_values=[[255, 255, 255]],target_platform='rk3588')
     print('done')
 
     # 导入onnx模型，使用model指定onnx模型路径
@@ -23,7 +31,7 @@ if __name__ == '__main__':
 
     # 构建RKNN模型，这里设置do_quantization为true开启量化，dataset是指定用于量化校正的数据集
     print('--> Building model')
-    ret = rknn.build(do_quantization=QUANTIZE_ON, dataset=DATASET)
+    ret = rknn.build(do_quantization=QUANTIZE_ON,dataset=DATASET)
     if ret != 0:
         print('Build model failed!')
         exit(ret)
@@ -52,12 +60,11 @@ if __name__ == '__main__':
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     img = cv2.resize(img, (IMG_SIZE, IMG_SIZE))
 
+    img=img[None]
     # 进行推理，没有设置target默认使用模拟器，之后对输出数据后处理并保存结果
     print('--> Running model')
     outputs = rknn.inference(inputs=[img])
     np.save('./onnx_yolov5_0.npy', outputs[0])
-    np.save('./onnx_yolov5_1.npy', outputs[1])
-    np.save('./onnx_yolov5_2.npy', outputs[2])
+    # np.save('./onnx_yolov5_1.npy', outputs[1])
+    # np.save('./onnx_yolov5_2.npy', outputs[2])
     print('done')
-
-    # 省略...
