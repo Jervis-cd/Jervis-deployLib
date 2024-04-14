@@ -1,6 +1,7 @@
 exec_name := infer
 workdir   := workspace
 srcdir    := src
+objdir    := objs
 
 cc        := g++
 stdcpp    := c++11
@@ -14,10 +15,12 @@ TensorRT  := /home/dockershared/TensorRT-8.6.1.6
 
 cpp_srcs := $(shell find $(srcdir) -name "*.cpp")
 cpp_objs := $(cpp_srcs:.cpp=.cpp.o)
+cpp_objs := $(cpp_objs:$(srcdir)/%=$(objdir)/%)
 cpp_mk   := $(cpp_objs:.cpp.o=.cpp.mk)
 
 cu_srcs := $(shell find $(srcdir) -name "*.cu")
 cu_objs := $(cu_srcs:.cu=.cu.o)
+cu_objs := $(cu_objs:$(srcdir)/%=$(objdir)/%)
 cu_mk   := $(cu_objs:.cu.o=.cu.mk)
 
 include_paths := src				\
@@ -64,26 +67,31 @@ run       : $(exec_name)
 
 $(workdir)/$(exec_name) : $(cpp_objs) $(cu_objs)
 	@echo Link $@
+	@mkdir -p $(dir $@)
 	@$(cc) $^ -o $@ $(link_flags)
 
-$(srcdir)/%.cpp.o : $(srcdir)/%.cpp
+$(objdir)/%.cpp.o : $(srcdir)/%.cpp
 	@echo Compile CXX $<
+	@mkdir -p $(dir $@)
 	@$(cc) -c $< -o $@ $(cpp_compile_flags)
 
-$(srcdir)/%.cu.o : $(srcdir)/%.cu
+$(objdir)/%.cu.o : $(srcdir)/%.cu
 	@echo Compile CUDA $<
+	@mkdir -p $(dir $@)
 	@$(nvcc) -c $< -o $@ $(cu_compile_flags)
 
-$(srcdir)/%.cpp.mk : $(srcdir)/%.cpp
+$(objdir)/%.cpp.mk : $(srcdir)/%.cpp
 	@echo Compile depends C++ $<
+	@mkdir -p $(dir $@)
 	@$(cc) -M $< -MF $@ -MT $(@:.cpp.mk=.cpp.o) $(cpp_compile_flags)
     
-$(srcdir)/%.cu.mk : $(srcdir)/%.cu
+$(objdir)/%.cu.mk : $(srcdir)/%.cu
 	@echo Compile depends CUDA $<
+	@mkdir -p $(dir $@)
 	@$(nvcc) -M $< -MF $@ -MT $(@:.cu.mk=.cu.o) $(cu_compile_flags)
 
 clean :
-	@rm -rf $(srcdir)/*.o $(workdir)/$(exec_name) $(workdir)/*.jpg
+	@rm -rf $(objdir) $(workdir)/$(exec_name) $(workdir)/*.jpg
 
 .PHONY : clean run $(exec_name) all
 
