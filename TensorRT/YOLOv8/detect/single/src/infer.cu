@@ -4,7 +4,6 @@
 
 namespace trt{
 
-#define
 }
 
 
