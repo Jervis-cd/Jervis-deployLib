@@ -52,6 +52,48 @@ void __log_func(const char *file,int line,const char *fmt,...){
   fprintf(stdout,"%s\n",buffer);
 }
 
+class __native_nvinfer_logger:public nvinfer1::ILogger{
+ public:
+  virtual void log(nvinfer1::ILogger::Severity severity,const char *msg) noexcept override{
+    if(severity==nvinfer1::ILogger::Severity::kINTERNAL_ERROR){
+      INFO("NVInfer INTERVAL_ERROR:%s",msg);
+      std::abort();
+    }else if(severity==nvinfer1::ILogger::Severity::kERROR){
+      INFO("NVInfer:%s",msg);
+    }
+  }
+};
+
+
+class __native_engine_context{
+ public:
+  virtual ~__native_engine_context(){destroy();}
+
+  std::shared_ptr<nvinfer1::IExecutionContext> context_;
+  std::shared_ptr<nvinfer1::ICudaEngine> engine_;
+  std::shared_ptr<nvinfer1::IRuntime> runtime_=nullptr;
+
+  bool construct(const void *pdata,size_t size){
+    destroy();
+    if(pdata==nullptr || size==0) return false;
+
+    runtime_=std::shared_ptr<nvinfer1::IRuntime>(nvinfer1::createInferRuntime(gLogger),destroy_nvidia_pointer<IRuntime>);
+
+  }
+
+ private:
+  void destroy(){
+    context_.reset();
+    engine_.reset();
+    runtime_.reset();
+  }
+};
+
+class InferImpl:public Infer{
+ public:
+  std::shared_ptr<__native_engine_context> 
+};
+
 }
 
 
