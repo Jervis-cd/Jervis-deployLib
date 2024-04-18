@@ -40,7 +40,7 @@ static std::string file_name(const std::string &path,bool include_suffix){
   return path.substr(p,u-p);
 }
 
-// 打印log
+// 宏函数定义，打印log
 void __log_func(const char *file,int line,const char *fmt,...){
   va_list vl;
   va_start(vl,fmt);
@@ -64,6 +64,12 @@ class __native_nvinfer_logger:public nvinfer1::ILogger{
   }
 };
 
+static __native_nvinfer_logger gLogger;
+
+template <typename _T>
+static void destroy_nvidia_pointer(_T *ptr){
+  if(ptr) ptr->destroy();
+}
 
 class __native_engine_context{
  public:
@@ -77,8 +83,16 @@ class __native_engine_context{
     destroy();
     if(pdata==nullptr || size==0) return false;
 
-    runtime_=std::shared_ptr<nvinfer1::IRuntime>(nvinfer1::createInferRuntime(gLogger),destroy_nvidia_pointer<IRuntime>);
+    runtime_=std::shared_ptr<nvinfer1::IRuntime>(nvinfer1::createInferRuntime(gLogger),
+                                                  destroy_nvidia_pointer<nvinfer1::IRuntime>);
+    if(runtime_==nullptr) return false;
 
+    engine_=std::shared_ptr<nvinfer1::ICudaEngine>(runtime_->deserializeCudaEngine(pdata,size,nullptr),
+                                                    destroy_nvidia_pointer<nvinfer1::ICudaEngine>);
+    if(engine_==nullptr) return false;
+
+    context_=std::shared_ptr<nvinfer1::IExecutionContext>(engine_->createExecutionContext(),
+                                                          destroy_nvidia_pointer<nvinfer1::IExecutionContext>);
   }
 
  private:
@@ -91,7 +105,7 @@ class __native_engine_context{
 
 class InferImpl:public Infer{
  public:
-  std::shared_ptr<__native_engine_context> 
+  std::shared_ptr<__native_engine_context> context_;
 };
 
 }
