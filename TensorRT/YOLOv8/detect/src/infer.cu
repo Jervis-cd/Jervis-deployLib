@@ -2,6 +2,7 @@
 #include<cuda_runtime.h>
 
 #include<stdarg.h>
+#include<unordered_map>
 #include<iostream>
 
 #include "infer.hpp"
@@ -93,6 +94,7 @@ class __native_engine_context{
 
     context_=std::shared_ptr<nvinfer1::IExecutionContext>(engine_->createExecutionContext(),
                                                           destroy_nvidia_pointer<nvinfer1::IExecutionContext>);
+    return context_!=nullptr;
   }
 
  private:
@@ -106,6 +108,28 @@ class __native_engine_context{
 class InferImpl:public Infer{
  public:
   std::shared_ptr<__native_engine_context> context_;
+  std::unordered_map<std::string,int> binding_name_to_index_;
+
+  virtual ~InferImpl()=default;
+
+  bool construct(const void *data,size_t size){
+    context_=std::make_shared<__native_engine_context>();
+    if(!context_->construct(data,size)) return false;
+
+    setup();
+    return true;
+  }
+
+  void setup(){
+    auto engine=this->context_->engine_;
+    int nbBindings=engine->getNbBindings();
+
+    binding_name_to_index_.clear();
+    for(int i=0;i<nbBindings;i++){
+      const char *bindingName=engine->getBindingName(i);
+      binding_name_to_index_[bindingName]=i;
+    }
+  }
 };
 
 }
