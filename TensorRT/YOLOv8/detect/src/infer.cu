@@ -7,7 +7,6 @@
 
 #include "infer.hpp"
 
-
 namespace trt{
 
 // 定义宏函数检查cuda runtime api是否运行成功
