@@ -20,7 +20,6 @@ do{                                                                             
   }                                                                                       \
 }while(0)
 
-
 static std::string file_name(const std::string &path,bool include_suffix){
   /*返回输入路径的文件名称，并可指定是否返回后缀*/
   if(path.empty()) return "";
