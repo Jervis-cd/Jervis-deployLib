@@ -4,7 +4,6 @@
 #include<memory>
 #include<vector>
 
-
 namespace trt{
 
 #define INFO(...) trt::__log_func(__FILE__,__LINE__,__VA_ARGS__)
@@ -39,7 +38,8 @@ class Infer{
   virtual bool has_dynamic_dim() = 0;
   virtual void print() = 0;
 };
-}
 
-
+std::shared_ptr<Infer> load(const std::string &file);
+std::string format_shape(const std::vector<int> &shape);
+}         // namespace trt
 #endif    // __INFER_HPP__

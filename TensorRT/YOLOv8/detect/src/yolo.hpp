@@ -30,9 +30,8 @@ typedef std::vector<Box> BoxArray;
 
 class Infer{
  public:
-  // 定义single/batch forward纯虚函数
-  virtual BoxArray forward(const Image &image,void *stream=nullptr)=0;
-  virtual std::vector<BoxArray> forwards(const std::vector<Image> &image,void *stream=nullptr)=0;
+  // virtual BoxArray forward(const Image &image,void *stream=nullptr)=0;
+  // virtual std::vector<BoxArray> forwards(const std::vector<Image> &image,void *stream=nullptr)=0;
 };
 
 std::shared_ptr<Infer> load(const std::string &engine_file,

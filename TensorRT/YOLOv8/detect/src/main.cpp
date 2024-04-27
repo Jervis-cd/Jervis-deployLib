@@ -8,18 +8,19 @@ yolo::Image cvimg(const cv::Mat &image){
 
 void single_inference(const std::string img_path,
                       const std::string engine_path,
-                      const float confidence_tnreshold=0.25f,
+                      const float confidence_threshold=0.25f,
                       const float nms_threshold=0.5f){
   cv::Mat image=cv::imread(img_path);
 
-  auto model=yolo::load(engine_path,confidence_tnreshold,nms_threshold);
+  auto model=yolo::load(engine_path,confidence_threshold,nms_threshold);
   if(model=nullptr) return;
 
-  auto objs=model->forward(cvimg(image));
+  // auto objs=model->forward(cvimg(image));
 }
 
-int main(int argc,const char* argv){
+int main(int argc,const char* argv[]){
 
+  single_inference(argv[1],argv[2]);
   return 0;
 }
 
